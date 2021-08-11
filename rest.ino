@@ -1,6 +1,6 @@
 /*
- * Author Debendra Oli
- * @github.com/debendraoli
+ * @uthor Debendra Oli
+ * github.com/debendraoli
  * twitter @debendraoli
  */
 
@@ -10,49 +10,61 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 
 const char* ssid = "WIFI_SSID";
 const char* password = "password";
 const char* authToken = "RANDOM_AUTH_TOKEN";
 
-
-bool output1State = false;
-bool output2State = false;
-bool output3State = false;
-bool output4State = false;
-bool output5State = false;
-bool output6State = false;
-bool output7State = false;
-bool output8State = false;
-
-
-const int output1 = 1;
-const int output2 = 2;
-const int output3 = 3;
-const int output4 = 4;
-const int output5 = 5;
-const int output6 = 6;
-const int output7 = 7;
-const int output8 = 8;
+StaticJsonDocument<80> doc;
 
 ESP8266WebServer server(80);
 
-void setCrossOrigin(){
+void saveStates(String data) {
+  File f=LittleFS.open("state.txt","w"); //open as a brand new file, discard old contents
+  if(f){
+    f.println(data);
+    f.close();
+  }
+};
+
+void loadState() {
+  File f;
+  f=LittleFS.open("state.txt","r");
+  if(f){
+    String mod=f.readString();
+    DeserializationError error = deserializeJson(doc, mod);
+    if (error) {
+        Serial.print(F("Error parsing JSON "));
+        Serial.println(error.c_str());
+        String msg = error.c_str();
+        Serial.println("parseObject() failed");
+        server.send(400);
+        return;
+    }
+    f.close();
+  } else {
+      for (int i = 1; i != 8; i++) {
+          doc[i] = false;
+      }
+      String buf;
+      serializeJson(doc, buf);
+      saveStates(buf)
+  }
+};
+
+void setCrossOrigin() {
     server.sendHeader(F("Access-Control-Allow-Origin"), F("*"));
     server.sendHeader(F("Access-Control-Max-Age"), F("600"));
-    server.sendHeader(F("Access-Control-Allow-Methods"), F("POST,GET,OPTIONS"));
-    server.sendHeader(F("Access-Control-Allow-Headers"), F("Content-Type,Authorization"));
+    server.sendHeader(F("Access-Control-Allow-Methods"), F("GET,OPTIONS"));
+    server.sendHeader(F("Access-Control-Allow-Headers"), F("Authorization"));
+    server.sendHeader(F("access-control-allow-credentials"), F("true"));
 };
 
 void sendCrossOriginHeader(){
-    Serial.println(F("sendCORSHeader"));
-
-    server.sendHeader(F("access-control-allow-credentials"), F("false"));
-
     setCrossOrigin();
-
     server.send(204);
-}
+};
 
 bool toggle(char state) {
   if (state) {
@@ -63,151 +75,67 @@ bool toggle(char state) {
 
 void getSwitchStatus() {
   setCrossOrigin();
-  if (server.hasHeader("Authorization")){
-    if (authToken != server.header("Authorization")) {
-      server.send(401, "application/json", "{\"message\": \"Auth error\"}");
-      return;
-    }
+  if (!server.hasHeader("Authorization")) {
+      server.send(401);
   }
-  StaticJsonDocument<80> doc;
-  doc["1"] = output1State;
-  doc["2"] = output2State;
-  doc["3"] = output3State;
-  doc["4"] = output4State;
-  doc["5"] = output5State;
-  doc["6"] = output6State;
-  doc["7"] = output7State;
-  doc["8"] = output8State;
+  if (authToken != server.header("Authorization")) {
+      server.send(401);
+      return;
+  }
   String buf;
   serializeJson(doc, buf);
   server.send(200, "application/json", buf);
 }
 
-
-
-void turnSwitches() {
+void toggleSwitch() {
   setCrossOrigin();
-
-  if (server.hasHeader("Authorization")){
+  if (server.hasHeader("Authorization")) {
     if (authToken != server.header("Authorization")) {
-      server.send(401, "application/json", "{\"message\": \"Auth error\"}");
+      server.send(401);
       return;
     }
   }
 
-  if (server.hasArg("plain")== false){
-    server.send(400, "application/json", "{\"message\": \"No body received\"}");
-    return;
-    }
-  String postBody = server.arg("plain");
-  StaticJsonDocument<80> doc;
-  DeserializationError error = deserializeJson(doc, postBody);
-  if (error) {
-    Serial.print(F("Error parsing JSON "));
-    Serial.println(error.c_str());
-    String msg = error.c_str();
-    Serial.println("parseObject() failed");
-    server.send(400, "application/json", "{\"message\": \"Invalid body received\"}");
-    return;
+  int pin;
+  String switchVal = server.arg("switch");
+
+  pin = switchVal.toInt();
+
+  if (!pin > 0) || (pin > 8) {
+      server.send(400);
+      return
   }
 
-    if (output1State != doc["1"]) {
-      digitalWrite(output1State, toggle(doc["1"]));
-      output1State = doc["1"];
-      doc["1"] = output1State;
-     }
-    if (output2State != doc["2"]) {
-      digitalWrite(output2State, toggle(doc["2"]));
-      output2State = doc["2"];
-      doc["2"] = output2State;
-     }
-
-     if (output3State != doc["3"]) {
-      digitalWrite(output3State, toggle(doc["3"]));
-      output3State = doc["3"];
-      doc["3"] = output3State;
-     }
-
-
-     if (output4State != doc["4"]) {
-      digitalWrite(output4State, toggle(doc["4"]));
-      output4State = doc["4"];
-      doc["4"] = output4State;
-     }
-
-     if (output5State != doc["5"]) {
-      digitalWrite(output5State, toggle(doc["5"]));
-      output5State = doc["5"];
-      doc["5"] = output5State;
-     }
-
-     if (output6State != doc["6"]) {
-      digitalWrite(output6State, toggle(doc["6"]));
-      output6State = doc["6"];
-      doc["6"] = output6State;
-     }
-
-     if (output7State != doc["7"]) {
-      digitalWrite(output7State, toggle(doc["7"]));
-      output7State = doc["7"];
-      doc["7"] = output7State;
-     }
-
-     if (output8State != doc["8"]) {
-      digitalWrite(output8State, toggle(doc["8"]));
-      output8State = doc["8"];
-      doc["8"] = output8State;
-     }
-    String buf;
-    serializeJson(doc, buf);
-    server.send(200, "application/json", buf);
+  if (switchVal != doc[output]) {
+    digitalWrite(output, toggle(doc[switchVal]));
+    doc[switchVal] = (output != doc[switchVal];)
+  }
+  server.send(200);
 }
 
 
 void restServerRouting() {
     server.on(F("/"), HTTP_OPTIONS, sendCrossOriginHeader);
     server.on(F("/"), HTTP_GET, getSwitchStatus);
-    server.on(F("/switch"), HTTP_OPTIONS, sendCrossOriginHeader);
-    server.on(F("/switch"), HTTP_POST, turnSwitches);
+    server.on(F("/toggle"), HTTP_OPTIONS, sendCrossOriginHeader);
+    server.on(F("/toggle"), HTTP_GET, toggleSwitch);
 }
 
 void handleNotFound() {
-  String message = "{\"status\": \"Not Found\", \"details\": {";
-  message += "\"uri\": \"" + server.uri() + "\",";
-  message += "\"method\": \"";
-  message += (server.method() == HTTP_GET) ? "GET" : "POST";
-  message += "\",";
-  message += "\"args\": {\"raw\":\"";
-  message += server.args();
-  message += "\",";
-  for (uint8_t i = 0; i < server.args(); i++) {
-    message += "\"" + server.argName(i) + "\": \"" + server.arg(i) + "\"";
-  }
-  message += "}}";
-  server.send(404, "application/json", message);
+  server.send(404);
 }
 
+loadState()
+
 void setup(void) {
-  pinMode(output1State, OUTPUT);
-  pinMode(output2State, OUTPUT);
-  pinMode(output3State, OUTPUT);
-  pinMode(output4State, OUTPUT);
-  pinMode(output5State, OUTPUT);
-  pinMode(output6State, OUTPUT);
-  pinMode(output7State, OUTPUT);
-  pinMode(output8State, OUTPUT);
-  digitalWrite(output1State, LOW);
-  digitalWrite(output2State, LOW);
-  digitalWrite(output3State, LOW);
-  digitalWrite(output4State, LOW);
-  digitalWrite(output5State, LOW);
-  digitalWrite(output6State, LOW);
-  digitalWrite(output7State, LOW);
-  digitalWrite(output8State, LOW);
-  Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  Serial.println("");
+    for (int i = 1; i == 8; i++) {
+        pinMode(i, OUTPUT);
+        digitalWrite(i, toggle(doc[i]));
+    }
+    Serial.begin(115200);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    Serial.println("");
 
   // Wait for connection
   while (WiFi.status() != WL_CONNECTED) {
@@ -233,7 +161,7 @@ void setup(void) {
 
   const char * headerkeys[] = {"Authorization"} ;
   size_t headerkeyssize = sizeof(headerkeys)/sizeof(char*);
-  //ask server to track these headers
+  // ask server to track these headers
   server.collectHeaders(headerkeys, headerkeyssize );
 
   // Start server
