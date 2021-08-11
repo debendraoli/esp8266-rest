@@ -1,8 +1,7 @@
 /*
- * @uthor Debendra Oli
  * github.com/debendraoli
  * twitter @debendraoli
- */
+*/
 
 #include "Arduino.h"
 #include <ESP8266WiFi.h>
@@ -14,23 +13,25 @@
 
 const char* ssid = "WIFI_SSID";
 const char* password = "password";
-const char* authToken = "RANDOM_AUTH_TOKEN";
+const String authToken = "RANDOM_AUTH_TOKEN";
 
 StaticJsonDocument<80> doc;
 
 ESP8266WebServer server(80);
 
-void saveStates(String data) {
-  File f=LittleFS.open("state.txt","w"); //open as a brand new file, discard old contents
+void saveStates() {
+  File f=LittleFS.open("state","w"); //open as a brand new file, discard old contents
   if(f){
-    f.println(data);
+    String buf;
+    serializeJson(doc, buf);
+    f.println(buf);
     f.close();
   }
 };
 
 void loadState() {
   File f;
-  f=LittleFS.open("state.txt","r");
+  f=LittleFS.open("state","r");
   if(f){
     String mod=f.readString();
     DeserializationError error = deserializeJson(doc, mod);
@@ -47,9 +48,7 @@ void loadState() {
       for (int i = 1; i != 8; i++) {
           doc[i] = false;
       }
-      String buf;
-      serializeJson(doc, buf);
-      saveStates(buf)
+    saveStates();
   }
 };
 
@@ -73,61 +72,52 @@ bool toggle(char state) {
   return LOW;
 }
 
-void getSwitchStatus() {
+void switches() {
   setCrossOrigin();
   if (!server.hasHeader("Authorization")) {
-      server.send(401);
+    server.send(401);
+    return;
   }
   if (authToken != server.header("Authorization")) {
-      server.send(401);
-      return;
+    server.send(401);
+    return;
   }
-  String buf;
-  serializeJson(doc, buf);
-  server.send(200, "application/json", buf);
-}
 
-void toggleSwitch() {
-  setCrossOrigin();
-  if (server.hasHeader("Authorization")) {
-    if (authToken != server.header("Authorization")) {
-      server.send(401);
-      return;
+  String action = server.arg("action");
+
+  if (action == "status") {
+    String buf;
+    serializeJson(doc, buf);
+    server.send(200, "application/json", buf);
+  } else if ( action == "toggle") {
+    int pin = server.arg("switch").toInt();
+    if (!pin > 0 || pin > 8 ) {
+        server.send(400, "application/json", "{\"message\": \"Invalid pin range. allowed: 1-8\"}");
     }
+    bool level = !doc[pin];
+    digitalWrite(pin, toggle(level));
+    doc[pin] = level;
+    saveStates();
+    server.send(200);
+  } else {
+    server.send(400, "application/json", "{\"message\": \"Action not supported. allowed: status, toggle\"}");
   }
-
-  int pin;
-  String switchVal = server.arg("switch");
-
-  pin = switchVal.toInt();
-
-  if (!pin > 0) || (pin > 8) {
-      server.send(400);
-      return
-  }
-
-  if (switchVal != doc[output]) {
-    digitalWrite(output, toggle(doc[switchVal]));
-    doc[switchVal] = (output != doc[switchVal];)
-  }
-  server.send(200);
+  return;
 }
 
 
 void restServerRouting() {
     server.on(F("/"), HTTP_OPTIONS, sendCrossOriginHeader);
-    server.on(F("/"), HTTP_GET, getSwitchStatus);
-    server.on(F("/toggle"), HTTP_OPTIONS, sendCrossOriginHeader);
-    server.on(F("/toggle"), HTTP_GET, toggleSwitch);
+    server.on(F("/"), HTTP_GET, switches);
 }
 
 void handleNotFound() {
   server.send(404);
 }
 
-loadState()
 
 void setup(void) {
+    loadState();
     for (int i = 1; i == 8; i++) {
         pinMode(i, OUTPUT);
         digitalWrite(i, toggle(doc[i]));
@@ -139,7 +129,7 @@ void setup(void) {
 
   // Wait for connection
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    delay(3000);
     Serial.print(".");
   }
   Serial.println("");
