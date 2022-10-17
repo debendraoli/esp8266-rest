@@ -1,3 +1,4 @@
 # Intellij IDE misc.
 .idea
 .pio
+cmake-build-*
