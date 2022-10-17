@@ -1,0 +1,5 @@
+/home/debendra/projects/contrib/smart-home/cmake-build-nodemcuv2/CMakeFiles/Production.dir
+/home/debendra/projects/contrib/smart-home/cmake-build-nodemcuv2/CMakeFiles/Debug.dir
+/home/debendra/projects/contrib/smart-home/cmake-build-nodemcuv2/CMakeFiles/Z_DUMMY_TARGET.dir
+/home/debendra/projects/contrib/smart-home/cmake-build-nodemcuv2/CMakeFiles/edit_cache.dir
+/home/debendra/projects/contrib/smart-home/cmake-build-nodemcuv2/CMakeFiles/rebuild_cache.dir
